@@ -17,7 +17,14 @@ from uuid import UUID
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from actions.contracts import ActionCapability, ActionRequest, iter_result_json, result_preview
+from actions.contracts import (
+    ActionCapability,
+    ActionRequest,
+    ActionResult,
+    iter_result_json,
+    result_preview,
+    result_references,
+)
 from actions.runtime import ActionRuntime
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
@@ -44,7 +51,7 @@ from application.time_context import format_time_context
 from application.tool_policy import ToolPolicyError, agent_role, tool_policy
 from brain.contracts import BrainCapability
 from common.agent_policy import AgentPolicy
-from common.logging import log_event
+from common.logging import exception_fields, log_event
 from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetExhausted
@@ -270,6 +277,7 @@ class DurableAgentActivities:
             "turn": getattr(request, "turn", None),
             "operation_id": getattr(request, "operation_id", None),
             "activity_attempt": getattr(request, "execution_attempt", DurableAgentActivities._attempt()),
+            "lease_token": getattr(request, "lease_token", None),
         }
 
     @staticmethod
@@ -1077,6 +1085,7 @@ class DurableAgentActivities:
                             else:
                                 await asyncio.to_thread(self.run_budget.release,request.run_id,request.operation_id)
                         raise
+                    result_value = cast(ActionResult, result_value)
                     if self.run_budget is not None and not web_tool:
                         measured = {dimension: 0 for dimension in reservation}
                         measured["tool_calls"] = 1
@@ -1119,8 +1128,8 @@ class DurableAgentActivities:
             publish_raw = (
                 lambda raw, size: self._publish_tool_raw(request, raw, size)
             ) if execution['role'] == 'root' and self.output_publisher is not None and self.run_budget is not None else None
-            result_value = await asyncio.to_thread(
-                ActionRuntime.prepare_result, result_value, publish_raw)
+            result_value = cast(ActionResult, await asyncio.to_thread(
+                ActionRuntime.prepare_result, result_value, publish_raw))
             result_ref = f"agent-tool-result:{request.operation_id}"
             observation_content = result_value.to_observation(
                 receipt_ref=result_ref if request.source.source_kind == 'work' and not result_value.failed else '')
@@ -1236,7 +1245,7 @@ class DurableAgentActivities:
                 )
             else:
                 await asyncio.to_thread(self.store.fail_operation, request.operation_id, str(code))
-            log_event(tool_logger, logging.ERROR, "tool_execution_failed", "tool", **fields, status="failed", error_code=code, elapsed_ms=round((time.monotonic() - started) * 1000))
+            log_event(tool_logger, logging.ERROR, "tool_execution_failed", "tool", **fields, status="failed", error_code=code, elapsed_ms=round((time.monotonic() - started) * 1000), **exception_fields(exc))
             if isinstance(exc, ApplicationError):
                 raise
             if governance is not None:
@@ -1266,8 +1275,39 @@ class DurableAgentActivities:
             result_ref=result.result_ref,
             fencing_token=request.lease_token,
             side_effect_class=side_effect_class,
+            tool_success=result.tool_success,
+            raw_json_bytes=result_value.metadata["result_processing"].get("raw_json_bytes"),
+            raw_available=result_value.metadata["result_processing"].get("raw_available"),
+            raw_location=result_value.metadata["result_processing"].get("raw_location"),
+            summary_status=result_value.metadata["result_processing"].get("summary_status"),
+            processing_error=result_value.metadata["result_processing"].get("processing_error"),
+            observation_bytes=len(observation_content.encode("utf-8")),
+            file_ids=self._result_file_ids(result_value),
         )
         return result
+
+    @staticmethod
+    def _result_file_ids(result: ActionResult) -> list[str]:
+        """Log only file identities from existing result/publication references."""
+        references = result_references(result.output)
+        candidates = [references.get("file_id"),
+                      result.metadata.get("result_processing", {}).get("raw_file_id")]
+        file_ids = references.get("file_ids")
+        if isinstance(file_ids, list):
+            candidates.extend(file_ids)
+        outputs = references.get("outputs")
+        if isinstance(outputs, list):
+            candidates.extend(item.get("file_id") for item in outputs if isinstance(item, dict))
+        valid = set()
+        for candidate in candidates:
+            if isinstance(candidate, str):
+                try:
+                    value = UUID(candidate)
+                except ValueError:
+                    continue
+                if value.int:
+                    valid.add(str(value))
+        return sorted(valid)
 
     @activity.defn(name="planning_activity")
     @fenced_activity

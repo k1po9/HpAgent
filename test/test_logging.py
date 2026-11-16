@@ -139,3 +139,32 @@ def test_web_api_entrypoint_uses_independent_logs_and_disables_access_log(
         "access_log": False,
         "proxy_headers": False,
     }]
+
+
+def test_exception_fields_keep_frames_without_values_or_source():
+    from common.logging import exception_fields
+
+    try:
+        raise ValueError('private-body-and-token')
+    except ValueError as exc:
+        fields = exception_fields(exc)
+    assert fields['error_type'] == 'ValueError'
+    assert fields['traceback'][-1]['function'] == 'test_exception_fields_keep_frames_without_values_or_source'
+    assert fields['traceback'][-1]['line'] > 0
+    assert 'private-body-and-token' not in json.dumps(fields)
+
+
+def test_exception_traceback_is_emitted_once_across_reraise_and_wrapping():
+    from common.logging import exception_fields
+
+    try:
+        try:
+            raise ValueError('private-token')
+        except ValueError as exc:
+            first = exception_fields(exc)
+            raise RuntimeError('outer-private-body') from exc
+    except RuntimeError as exc:
+        second = exception_fields(exc)
+    assert first['traceback']
+    assert 'traceback' not in second
+    assert second['traceback_logged'] is True

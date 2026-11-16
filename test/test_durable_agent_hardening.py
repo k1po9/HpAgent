@@ -970,8 +970,11 @@ async def test_manifest_preserves_main_delegation_boundaries_and_audit(tmp_path,
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('mode', ['success', 'publish_failure', 'budget_denied', 'invalid_id', 'no_publisher', 'no_budget'])
-async def test_large_result_publication_keeps_known_outcome_and_replays(tmp_path, mode):
+async def test_large_result_publication_keeps_known_outcome_and_replays(tmp_path, mode, caplog):
     import json
+    import logging
+
+    caplog.set_level(logging.INFO)
 
     from resources.run_budget import RunBudgetExhausted
     from storage.tenant_file_store import TenantFileStore
@@ -1023,6 +1026,10 @@ async def test_large_result_publication_keeps_known_outcome_and_replays(tmp_path
     assert first.tool_success is True
     assert processing['raw_available'] is (mode == 'success')
     assert ('raw_file_id' in processing) is (mode == 'success')
+    completed_log = next(r for r in caplog.records if getattr(r, 'event', '') == 'tool_execution_completed')
+    expected_ids = {raw['output']['file_id']} | ({str(file_id)} if mode == 'success' else set())
+    assert set(completed_log.file_ids) == expected_ids
+    assert completed_log.raw_available is (mode == 'success')
     assert len(json.dumps(event['raw_result']).encode()) <= 1048576
     assert observation['references']['command_receipt']['command_id'] == 'committed-command'
     assert observation['references']['file_id'] == raw['output']['file_id']
@@ -1089,3 +1096,68 @@ async def test_large_branch_result_cannot_acquire_output_publication(monkeypatch
 async def test_success_display_summary_keeps_tool_preview_without_processing_metadata():
     result = await activities(Store(ToolOperationState('started', None)), Actions('read_only')).tool_execution(request())
     assert result.display_summary == 'ok'
+
+
+@pytest.mark.parametrize('tool_error', [None, 'private tool failure'])
+async def test_tool_completion_log_separates_outcome_and_safe_result_details(caplog, tool_error):
+    import json
+    import logging
+
+    from common.logging import _JsonFormatter
+
+    class ResultActions(Actions):
+        async def execute_request(self, action, **kwargs):
+            return ActionResult(
+                request=action, success=tool_error is None,
+                output={'file_id': '8a6f8763-949f-4e4f-b1c1-6d6936be8915',
+                        'file_ids': ['6ee29531-f9cf-4f72-9923-ee9fa7eb606c', 'private-invalid-reference'],
+                        'outputs': [{'file_id': '53426043-2234-454a-bc8d-8bbea68f1990', 'body': 'private-output-body'}],
+                        'command_receipt': {'message': 'private-command-body'},
+                        'body': 'private-result-body'},
+                error=tool_error,
+                raw={'success': tool_error is None, 'output': 'private-result-body'},
+            )
+
+    caplog.set_level(logging.INFO)
+    item = request()
+    result = await activities(Store(ToolOperationState('started', None)), ResultActions('read_only')).tool_execution(item)
+    records = [json.loads(_JsonFormatter().format(r)) for r in caplog.records]
+    completed = next(r for r in records if r.get('event') == 'tool_execution_completed')
+    assert completed['status'] == 'success'
+    assert completed['tool_success'] is (tool_error is None)
+    assert completed['result_ref'] == result.result_ref
+    assert completed['execution_id'] == item.execution_id
+    assert completed['lease_token'] == 11
+    assert completed['raw_json_bytes'] == len(json.dumps({'success': tool_error is None, 'output': 'private-result-body'}).encode())
+    assert completed['observation_bytes'] > 0
+    assert completed['file_ids'] == ['53426043-2234-454a-bc8d-8bbea68f1990',
+                                      '6ee29531-f9cf-4f72-9923-ee9fa7eb606c',
+                                      '8a6f8763-949f-4e4f-b1c1-6d6936be8915']
+    assert 'private-invalid-reference' not in json.dumps(records)
+    assert 'private-output-body' not in json.dumps(records)
+    assert 'private-command-body' not in json.dumps(records)
+    assert 'private-result-body' not in json.dumps(records)
+    assert 'private tool failure' not in json.dumps(records)
+
+
+async def test_tool_activity_exception_logged_once_without_exception_text(caplog):
+    import json
+    import logging
+
+    from common.logging import _JsonFormatter
+
+    class BrokenActions(Actions):
+        async def execute_request(self, action, **kwargs):
+            raise ValueError('private-body-and-credential')
+
+    caplog.set_level(logging.INFO)
+    item = request()
+    with pytest.raises(ApplicationError):
+        await activities(Store(ToolOperationState('started', None)), BrokenActions('read_only')).tool_execution(item)
+    records = [json.loads(_JsonFormatter().format(r)) for r in caplog.records]
+    failures = [r for r in records if r.get('event') == 'tool_execution_failed']
+    assert len(failures) == 1
+    assert failures[0]['error_type'] == 'ValueError'
+    assert failures[0]['traceback']
+    assert failures[0]['operation_id'] == item.operation_id
+    assert 'private-body-and-credential' not in json.dumps(records)

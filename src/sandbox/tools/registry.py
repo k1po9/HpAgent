@@ -2,6 +2,7 @@
 import hashlib
 import json
 import logging
+import time
 from copy import deepcopy
 from dataclasses import asdict
 from threading import RLock
@@ -9,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import BaseTool
 
+from common.logging import exception_fields, log_event
 from sandbox.tools.routing.models import RegisteredTool, ToolKind, ToolRoutingSpec
 from sandbox.tools.types import ToolResult
 
@@ -68,7 +70,8 @@ class ToolDefinitionCatalog:
 class ToolRegistry:
     """Execution-local tools with unique names, execution and freeze semantics."""
 
-    def __init__(self):
+    def __init__(self, *, log_context: dict | None = None):
+        self._log_context = dict(log_context or {})
         self._tools: Dict[str, RegisteredTool] = {}
         self._lock = RLock()
         self._frozen = False
@@ -144,6 +147,7 @@ class ToolRegistry:
     # ── 执行 ────────────────────────────────────────────────────
 
     async def execute(self, tool_name: str, arguments: dict) -> ToolResult:
+        started = time.monotonic()
         tool = self.get(tool_name)
         if tool is None:
             return ToolResult(success=False, error=f"Tool '{tool_name}' not found")
@@ -183,6 +187,11 @@ class ToolRegistry:
                             metadata["trace_metadata"] = trace_metadata
             return ToolResult(success=True, output=output, metadata=metadata)
         except Exception as e:
+            log_event(logger, logging.ERROR,
+                      "tool_invocation_failed", "tools", **self._log_context,
+                      tool=tool_name, status="failed",
+                      elapsed_ms=round((time.monotonic() - started) * 1000),
+                      **exception_fields(e))
             return ToolResult(success=False, error=str(e))
 
     def clear(self) -> None:

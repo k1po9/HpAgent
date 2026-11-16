@@ -7,7 +7,7 @@ SandboxManager —— 沙箱池管理器，按会话创建 workspace 绑定的�
   3. 销毁: destroy_sandbox()
   4. 空闲回收: cleanup_idle_sandboxes()
 
-每个会话一个 Sandbox，会话结束时销毁。
+每个 Execution attempt（execution_id:lease_token）一个 Sandbox。
 """
 import logging
 import os
@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from application.tool_policy import agent_role, tool_policy
 from common.errors import SandboxNotFoundError
+from common.logging import exception_fields, log_event
 from sandbox.tools.local import LOCAL_TOOL_FACTORIES
 from sandbox.tools.registry import ToolRegistry
 from sandbox.tools.routing import ToolExposure, ToolRouter, routing_for
@@ -79,6 +80,7 @@ class SandboxManager:
         self._run_file_scopes: Dict[str, Any] = {}
         self._execution_active_file_run: Dict[str, str] = {}
         self._lock = RLock()
+        self._closed = False
 
     def bind_run_file_scope(self, run_id: str, execution_id: str, scope: Any) -> None:
         with self._lock:
@@ -124,159 +126,179 @@ class SandboxManager:
             session_context: 会话上下文 dict，包含 account_id、sender_id、
                             channel_type、metadata。供提醒工具等绑定用。
         """
+        started = time.monotonic()
+        # All lifecycle methods are synchronous. Never hold this RLock across
+        # tool execution, a lease yield or an await; it is not a Task mutex.
         with self._lock:
+            if self._closed:
+                raise RuntimeError("SandboxManager is closed")
             if execution_id in self._execution_to_sandbox:
                 return self._execution_to_sandbox[execution_id]
+            ctx = session_context or {"account_id": user_uuid, "channel_type": "work"}
+            identity, separator, lease_token = execution_id.rpartition(":")
+            sandbox_id = str(uuid.uuid4())
+            fields = {
+                "resource_key": execution_id,
+                "execution_id": identity if separator else execution_id,
+                "lease_token": lease_token if separator else None,
+                "sandbox_id": sandbox_id,
+                "account_id": ctx.get("account_id", user_uuid),
+                "run_id": (ctx.get("metadata") or {}).get("run_id"),
+            }
+            sandbox = None
+            try:
+                registry = ToolRegistry(log_context=fields)
 
-        registry = ToolRegistry()
+                policy = tool_policy()
+                role = agent_role(ctx.get("source_kind", "work"), ctx.get("execution_role", "root"))
 
-        ctx = session_context or {"account_id": user_uuid, "channel_type": "work"}
-        policy = tool_policy()
-        role = agent_role(ctx.get("source_kind", "work"), ctx.get("execution_role", "root"))
+                def register(tool, category):
+                    group_name = policy.group_for(tool.name, category)
+                    if group_name is None or group_name not in policy.roles[role].groups:
+                        return
+                    if role == "subagent" and (
+                        tool.name not in ctx.get("parent_tool_names", ())
+                        or (getattr(tool, "metadata", {}) or {}).get("side_effect_class") != "read_only"
+                    ):
+                        return
+                    routing = routing_for(tool, category)
+                    group = policy.groups[group_name]
+                    if group.exposure != "existing":
+                        routing = replace(routing, exposure=(
+                            ToolExposure.ALWAYS if group.exposure == "always" else ToolExposure.SEMANTIC
+                        ))
+                    registry.register(tool, category=category, routing=routing)
 
-        def register(tool, category):
-            group_name = policy.group_for(tool.name, category)
-            if group_name is None or group_name not in policy.roles[role].groups:
-                return
-            if role == "subagent" and (
-                tool.name not in ctx.get("parent_tool_names", ())
-                or (getattr(tool, "metadata", {}) or {}).get("side_effect_class") != "read_only"
-            ):
-                return
-            routing = routing_for(tool, category)
-            group = policy.groups[group_name]
-            if group.exposure != "existing":
-                routing = replace(routing, exposure=(
-                    ToolExposure.ALWAYS if group.exposure == "always" else ToolExposure.SEMANTIC
-                ))
-            registry.register(tool, category=category, routing=routing)
+                work_tool_names: tuple[str, ...] = ()
+                if self._work_commands is not None and ctx.get("source_kind") == "chat":
+                    from application.main_agent import create_main_work_tools
+                    tools = create_main_work_tools(ctx, self._work_commands)
+                    work_tool_names = tuple(tool.name for tool in tools)
+                    for tool in tools:
+                        register(tool, "native")
 
-        work_tool_names = ()
-        if self._work_commands is not None and ctx.get("source_kind") == "chat":
-            from application.main_agent import create_main_work_tools
-            tools = create_main_work_tools(ctx, self._work_commands)
-            work_tool_names = tuple(tool.name for tool in tools)
-            for tool in tools:
-                register(tool, "native")
+                if self._native_tools_enabled and not self._file_tools_enabled:
+                    for name, factory in LOCAL_TOOL_FACTORIES.items():
+                        if name == "Bash" and not self._host_bash_enabled:
+                            continue
+                        tool = factory(workspace_path)
+                        register(tool, "native")
+                    logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
+                else:
+                    logger.debug("Session sandbox: native tools disabled")
 
-        if self._native_tools_enabled and not self._file_tools_enabled:
-            for name, factory in LOCAL_TOOL_FACTORIES.items():
-                if name == "Bash" and not self._host_bash_enabled:
-                    continue
-                tool = factory(workspace_path)
-                register(tool, "native")
-            logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
-        else:
-            logger.debug("Session sandbox: native tools disabled")
+                if self._file_tools_enabled and ctx.get("channel_type") == "web":
+                    from sandbox.tools.local.file_analysis import create_file_analysis_tools
+                    from sandbox.tools.local.file_read import create_file_read_tools
+                    from sandbox.tools.local.file_write import create_file_write_tools
+                    from sandbox.tools.local.run_candidates import create_run_candidate_tools
 
-        if self._file_tools_enabled and ctx.get("channel_type") == "web":
-            from sandbox.tools.local.file_analysis import create_file_analysis_tools
-            from sandbox.tools.local.file_read import create_file_read_tools
-            from sandbox.tools.local.file_write import create_file_write_tools
-            from sandbox.tools.local.run_candidates import create_run_candidate_tools
+                    scope_provider = lambda sid=execution_id: self.get_active_run_file_scope(sid)
+                    for tool in (
+                        create_run_candidate_tools(scope_provider)
+                        + create_file_analysis_tools(scope_provider)
+                        + create_file_read_tools(
+                            scope_provider,
+                            document_router=self._file_document_router,
+                            account_id_provider=lambda value=str(ctx.get("account_id", "")): value,
+                        )
+                    ):
+                        register(tool, "native")
+                    if self._file_output_publisher is not None:
+                        for tool in create_file_write_tools(
+                            scope_provider,
+                            self._file_output_publisher,
+                            self._file_conversion_provider,
+                        ):
+                            if tool.name == "convert_file_to_pdf" and self._file_conversion_provider is None:
+                                continue
+                            register(tool, "native")
 
-            scope_provider = lambda sid=execution_id: self.get_active_run_file_scope(sid)
-            for tool in (
-                create_run_candidate_tools(scope_provider)
-                + create_file_analysis_tools(scope_provider)
-                + create_file_read_tools(
-                    scope_provider,
-                    document_router=self._file_document_router,
-                    account_id_provider=lambda value=str(ctx.get("account_id", "")): value,
+                if self._mcp_manager and not self._file_tools_enabled:
+                    for tool in self._mcp_manager.get_cached_tools():
+                        register(tool, "mcp")
+                    logger.debug("Session sandbox: %d MCP tools registered",
+                                 len(self._mcp_manager.get_cached_tools()))
+
+                if self._skill_definitions and not self._file_tools_enabled:
+                    from sandbox.tools.skills.engine import build_skill_tool_from_definition
+                    for skill_def in self._skill_definitions:
+                        if skill_def.get("type") != "instruction":
+                            logger.warning("Skipping non-instruction skill registration")
+                            continue
+                        skill_tool = build_skill_tool_from_definition(skill_def, registry)
+                        register(skill_tool, "skill")
+                    logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))
+
+                registry.freeze()
+
+                nsjail_executor = None
+                if self._nsjail_enabled and self._nsjail_config:
+                    nsjail_executor = NsjailExecutor(self._nsjail_config, log_context=fields)
+                    logger.debug("Session sandbox: nsjail executor enabled")
+
+                scope_provider = lambda sid=execution_id: self.get_active_run_file_scope(sid)
+                context_provider = ToolSelectionContextBuilder(
+                    surface=str(ctx.get("channel_type") or "unknown"),
+                    workspace_path=workspace_path, run_scope_provider=scope_provider,
+                    available_services=(
+                        frozenset({"gotenberg"})
+                        if self._file_conversion_provider is not None else frozenset()
+                    ),
                 )
-            ):
-                register(tool, "native")
-            if self._file_output_publisher is not None:
-                for tool in create_file_write_tools(
-                    scope_provider,
-                    self._file_output_publisher,
-                    self._file_conversion_provider,
-                ):
-                    if tool.name == "convert_file_to_pdf" and self._file_conversion_provider is None:
-                        continue
-                    register(tool, "native")
+                router = ToolRouter(registry, self._retriever)
+                sandbox = Sandbox(
+                    workspace_path=workspace_path,
+                    tool_registry=registry,
+                    sandbox_id=sandbox_id,
+                    nsjail_executor=nsjail_executor,
+                    tool_router=router,
+                    selection_context_provider=context_provider,
+                )
 
-        if self._mcp_manager and not self._file_tools_enabled:
-            for tool in self._mcp_manager.get_cached_tools():
-                register(tool, "mcp")
-            logger.debug("Session sandbox: %d MCP tools registered",
-                         len(self._mcp_manager.get_cached_tools()))
 
-        if self._skill_definitions and not self._file_tools_enabled:
-            from sandbox.tools.skills.engine import build_skill_tool_from_definition
-            for skill_def in self._skill_definitions:
-                if skill_def.get("type") != "instruction":
-                    logger.warning("Skipping non-instruction skill registration")
-                    continue
-                skill_tool = build_skill_tool_from_definition(skill_def, registry)
-                register(skill_tool, "skill")
-            logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))
+                tool_counts = registry.count_by_category()
+                work_tool_count = sum(
+                    registry.get_category(name) == "native" for name in work_tool_names
+                )
+                native_general_count = max(tool_counts["native"] - work_tool_count, 0)
+                bash_registered = registry.get_category("Bash") == "native"
+                nsjail_binary_ready = bool(
+                    nsjail_executor
+                    and os.path.isfile(nsjail_executor.config.nsjail_binary)
+                )
+                if not bash_registered:
+                    bash_isolation = "n/a"
+                elif nsjail_binary_ready:
+                    bash_isolation = "nsjail"
+                else:
+                    bash_isolation = "unavailable"
 
-        registry.freeze()
-
-        sandbox_id = str(uuid.uuid4())
-
-        nsjail_executor = None
-        if self._nsjail_enabled and self._nsjail_config:
-            nsjail_executor = NsjailExecutor(self._nsjail_config)
-            logger.debug("Session sandbox: nsjail executor enabled")
-
-        scope_provider = lambda sid=execution_id: self.get_active_run_file_scope(sid)
-        context_provider = ToolSelectionContextBuilder(
-            surface=str(ctx.get("channel_type") or "unknown"),
-            workspace_path=workspace_path, run_scope_provider=scope_provider,
-            available_services=(
-                frozenset({"gotenberg"})
-                if self._file_conversion_provider is not None else frozenset()
-            ),
-        )
-        router = ToolRouter(registry, self._retriever)
-        sandbox = Sandbox(
-            workspace_path=workspace_path,
-            tool_registry=registry,
-            sandbox_id=sandbox_id,
-            nsjail_executor=nsjail_executor,
-            tool_router=router,
-            selection_context_provider=context_provider,
-        )
-
-        with self._lock:
-            self._sandboxes[sandbox_id] = sandbox
-            self._execution_to_sandbox[execution_id] = sandbox_id
-
-        tool_counts = registry.count_by_category()
-        work_tool_count = sum(
-            registry.get_category(name) == "native" for name in work_tool_names
-        )
-        native_general_count = max(tool_counts["native"] - work_tool_count, 0)
-        bash_registered = registry.get_category("Bash") == "native"
-        nsjail_binary_ready = bool(
-            nsjail_executor
-            and os.path.isfile(nsjail_executor.config.nsjail_binary)
-        )
-        if not bash_registered:
-            bash_isolation = "n/a"
-        elif nsjail_binary_ready:
-            bash_isolation = "nsjail"
-        else:
-            bash_isolation = "unavailable"
-
-        logger.info(
-            "Execution sandbox created: id=%s execution=%s user=%s "
-            "tools(total=%d native_general=%d work_tools=%d mcp=%d skills=%d) "
-            "bash_registered=%s bash_isolation=%s",
-            sandbox_id,
-            execution_id,
-            user_uuid,
-            sum(tool_counts.values()),
-            native_general_count,
-            work_tool_count,
-            tool_counts["mcp"],
-            tool_counts["skill"],
-            bash_registered,
-            bash_isolation,
-        )
-        return sandbox_id
+                self._sandboxes[sandbox_id] = sandbox
+                self._execution_to_sandbox[execution_id] = sandbox_id
+                log_event(
+                    logger, logging.INFO, "sandbox_created", "tools", **fields,
+                    status="active", elapsed_ms=round((time.monotonic() - started) * 1000),
+                    tool_count=sum(tool_counts.values()), native_general_count=native_general_count,
+                    work_tool_count=work_tool_count, mcp_count=tool_counts["mcp"],
+                    skill_count=tool_counts["skill"], bash_registered=bash_registered,
+                    bash_isolation=bash_isolation,
+                )
+                return sandbox_id
+            except BaseException as exc:
+                # Constructors only bind local objects; MCP, retriever and file
+                # services are Worker-owned and must not be closed here.
+                self._sandboxes.pop(sandbox_id, None)
+                if self._execution_to_sandbox.get(execution_id) == sandbox_id:
+                    del self._execution_to_sandbox[execution_id]
+                if sandbox is not None:
+                    sandbox.destroy()
+                log_event(
+                    logger, logging.ERROR, "sandbox_creation_failed", "tools", **fields,
+                    status="failed", elapsed_ms=round((time.monotonic() - started) * 1000),
+                    **exception_fields(exc),
+                )
+                raise
 
     def get_sandbox_for_execution(self, execution_id: str) -> Sandbox:
         with self._lock:
@@ -300,10 +322,21 @@ class SandboxManager:
             sandbox = self._sandboxes.pop(sandbox_id, None)
             if not sandbox:
                 return False
-            sandbox.destroy()
-            for sid, sbid in list(self._execution_to_sandbox.items()):
-                if sbid == sandbox_id:
-                    del self._execution_to_sandbox[sid]
+            keys = [key for key, value in self._execution_to_sandbox.items()
+                    if value == sandbox_id]
+            try:
+                sandbox.destroy()
+            finally:
+                for key in keys:
+                    del self._execution_to_sandbox[key]
+            resource_key = keys[0] if keys else ""
+            identity, separator, lease_token = resource_key.rpartition(":")
+            log_event(
+                logger, logging.INFO, "sandbox_destroyed", "tools",
+                sandbox_id=sandbox_id, resource_key=resource_key,
+                execution_id=identity if separator else resource_key,
+                lease_token=lease_token if separator else None, status="destroyed",
+            )
             return True
 
     def list_sandboxes(self) -> List[Dict[str, Any]]:
@@ -322,19 +355,14 @@ class SandboxManager:
                 if now - s.last_used > self._max_idle_seconds
             ]
             for sid in to_destroy:
-                self._sandboxes[sid].destroy()
-                del self._sandboxes[sid]
-                for execution_id, sbid in list(self._execution_to_sandbox.items()):
-                    if sbid == sid:
-                        del self._execution_to_sandbox[execution_id]
+                self.destroy_sandbox(sid)
             return len(to_destroy)
 
     def close(self) -> None:
         """Destroy all process-owned sandboxes and clear runtime bindings."""
         with self._lock:
-            for sandbox in self._sandboxes.values():
-                sandbox.destroy()
-            self._sandboxes.clear()
-            self._execution_to_sandbox.clear()
+            self._closed = True
+            for sandbox_id in tuple(self._sandboxes):
+                self.destroy_sandbox(sandbox_id)
             self._run_file_scopes.clear()
             self._execution_active_file_run.clear()

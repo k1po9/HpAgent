@@ -65,4 +65,8 @@ jq 'select(.snapshot_id == "SNAPSHOT_UUID")' .data/logs/*.jsonl
 jq 'select(.event == "model_http_error" or .event == "model_dispatch_failed")' .data/logs/*.jsonl
 ```
 
+工具选择与 Sandbox 生命周期可按 `execution_id`、`resource_key=execution_id:lease_token`、`lease_token` 和 `sandbox_id` 关联。`sandbox_created` / `sandbox_creation_failed` 记录创建状态、耗时与身份，`sandbox_destroyed` 覆盖显式销毁、空闲清理和关闭。`tool_invocation_failed`、`nsjail_execution_failed`、`tool_runtime_failed` 与 `tool_execution_failed` 在捕获异常的责任层保留类型及 traceback 位置（文件名、函数、行号），同一异常向上抛出或包装时不重复打印堆栈；不记录异常自由文本、源码行、局部变量或 Bash 命令正文。
+
+`tool_execution_completed.status=success` 表示 Activity 已完成权威提交，工具成败看独立 `tool_success`；不据此推断 Run 或 Work 完成。该事件还记录原结果 JSON 字节数、模型观察 UTF-8 字节数、原文可用位置、摘要/处理状态、实际结果回执与输出文件 UUID；未成功发布的原文没有文件引用。操作去重沿用 `tool_execution_deduplicated` 与原 `result_ref`，不会重新执行工具。
+
 Provider 错误自由文本不作为模型分发诊断字段；只保留受限 ASCII code / request ID，不输出凭据或文件正文。模型快照内容仍受 entitlement 可见性控制，full_safe 请求体不是额外脱敏承诺。排障以分类与关联记录为准，不能把连接、请求格式、响应解析或额度问题都解释为浏览器网络中断。见[故障排查](troubleshooting.md)。

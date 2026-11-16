@@ -21,7 +21,7 @@ from actions.contracts import (
     result_references,
 )
 from common.agent_policy import AgentPolicy
-from common.logging import log_event
+from common.logging import exception_fields, log_event
 from common.token_counter import estimate_messages_tokens
 from sandbox.tools.routing.models import ToolRetrievalError, ToolSelectionResult, retrieval_failure
 
@@ -132,6 +132,9 @@ class ActionRuntime:
             result_dict.setdefault("metadata", {})
 
         except Exception as e:
+            log_event(logger, logging.ERROR, "tool_runtime_failed", "tools",
+                      resource_key=resource_key, execution_id=execution_id,
+                      tool=tool_name, status="failed", **exception_fields(e))
             return {
                 "success": False,
                 "output": None,

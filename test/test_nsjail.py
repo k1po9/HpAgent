@@ -203,3 +203,26 @@ async def test_td_022_real_cancel_hostile_child_is_killed_within_budget():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
+
+
+@pytest.mark.parametrize('failure', [FileNotFoundError, RuntimeError])
+async def test_nsjail_failure_diagnostic_omits_command_and_exception_body(monkeypatch, caplog, failure):
+    import logging
+
+    from common.logging import _JsonFormatter
+
+    async def fail(*args, **kwargs):
+        raise failure('private-exception-body')
+
+    caplog.set_level(logging.DEBUG)
+    monkeypatch.setattr(asyncio, 'create_subprocess_exec', fail)
+    executor = NsjailExecutor(NsjailConfig(nsjail_binary='/missing/nsjail'))
+    result = await executor.execute('Bash', {'cmd': 'private-command-token'})
+    assert not result.success
+    records = [json.loads(_JsonFormatter().format(r)) for r in caplog.records]
+    errors = [r for r in records if r.get('traceback')]
+    assert len(errors) == 1
+    assert errors[0]['error_type'] == failure.__name__
+    assert errors[0]['subprocess_id'] == result.metadata['execution_id']
+    assert 'private-command-token' not in json.dumps(records)
+    assert 'private-exception-body' not in json.dumps(records)

@@ -26,7 +26,7 @@ def test_action_result_legacy_error_still_counts_as_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_action_runtime_exception_returns_uniform_failure() -> None:
+async def test_action_runtime_exception_returns_uniform_failure(caplog) -> None:
     class Sandbox:
         async def execute(self, tool_name, arguments):
             raise RuntimeError("adapter exploded")
@@ -45,6 +45,10 @@ async def test_action_runtime_exception_returns_uniform_failure() -> None:
         "error": "adapter exploded",
         "metadata": {},
     }
+    record = next(r for r in caplog.records if getattr(r, 'event', '') == 'tool_runtime_failed')
+    assert record.execution_id == "run" and record.resource_key == "session"
+    assert record.error_type == "RuntimeError" and record.traceback
+    assert "adapter exploded" not in record.getMessage()
 
 
 @pytest.mark.asyncio

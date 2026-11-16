@@ -64,6 +64,8 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。Tool Retrieval 选择数量受限的相关工具，默认上限为 12（关闭语义检索后仍生效）。Main 管理工具与文件 front door 属于保留入口；配置上限容不下保留入口时，工具选择必须抛出配置错误并阻止模型分发，不能静默降为无工具请求。Side-effect Metadata、稳定 Operation ID、Budget 和 Reconciliation 共同保护可重试执行。Shell 类操作可在 Sandbox 和账号级 Workspace Isolation 中运行。
 
+Sandbox 按 `execution_id:lease_token` 绑定实例；不同 attempt 不共享 Registry 或 hints。Manager 的创建、销毁、空闲清理与关闭仍为无 await 的同步操作，由同一 `threading.RLock` 保护关闭检查、存在性检查、完整本地构造与登记。创建失败销毁本次实例并移除残留映射，不关闭 Worker 共享依赖；关闭后拒绝迟到创建。锁不跨工具执行、lease yield 或 await，不承担 Task 间的异步互斥。
+
 Worker 在接活前从现有工厂、已连接 MCP 缓存与 Instruction Skill 投影 `ToolDefinitionCatalog`，只保存声明，不持有执行闭包或运行身份。内置声明取并集，实际授权仍由各 Execution 的 Registry、角色和当前资源范围决定；Sandbox 创建、销毁不再同步全局索引。来源加载失败标记目录不完整，同步保留旧声明，不按缺失项删除；首次启动没有可用索引且目录不完整时拒绝启动。
 
 工具索引按包含 routing 的定义 hash 复用不变向量；Embedding 故障、数量/维度错误、非有限值和全零向量均拒绝。更新写入临时 Chroma Collection，核验名称、声明 hash、数量、文档和维度后，以临时文件、fsync 和原子替换发布索引目录下的 `active.json`。指针及 Collection 记录非秘密的模型身份、维度和格式；新模型向量不能查询旧模型索引。失败保留旧活动索引，重启验证当前/上一个集合；检索失败通过 `ToolRetrievalError` 在模型分发前终止，不归类为模型 Provider 故障或静默变为空工具列表。启用 RAG 后初始化失败也不静默关闭 RAG。

@@ -17,6 +17,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from common.logging import exception_fields, log_event
 from sandbox.tools.types import ToolResult
 
 logger = logging.getLogger("HpAgent.Nsjail")
@@ -89,8 +90,9 @@ class NsjailConfig:
 class NsjailExecutor:
     """仅对 Bash 工具提供 nsjail 加固的执行器。"""
 
-    def __init__(self, config: NsjailConfig, redis_cache: Any = None):
+    def __init__(self, config: NsjailConfig, redis_cache: Any = None, *, log_context: dict | None = None):
         self.config = config
+        self._log_context = dict(log_context or {})
         self._redis_cache = redis_cache
         if not os.path.isfile(self.config.nsjail_binary):
             logger.warning(
@@ -106,7 +108,7 @@ class NsjailExecutor:
         work_dir = self.config.work_dir
 
         cmd = self.config.build_command(bash_cmd, work_dir=work_dir)
-        logger.debug("nsjail exec [%s]: %s", execution_id, " ".join(cmd))
+        logger.debug("nsjail exec: subprocess_id=%s", execution_id)
 
         proc: asyncio.subprocess.Process | None = None
         try:
@@ -129,13 +131,21 @@ class NsjailExecutor:
         except asyncio.CancelledError:
             await self._stop_process(proc)
             raise
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            log_event(logger, logging.ERROR, "nsjail_execution_failed", "tools",
+                      **self._log_context, subprocess_id=execution_id, tool=tool_name,
+                      status="failed", elapsed_ms=round((time.time() - start_time) * 1000),
+                      **exception_fields(exc))
             return ToolResult(
                 success=False,
                 error=f"nsjail binary not found: {self.config.nsjail_binary}",
                 metadata={"execution_id": execution_id},
             )
         except Exception as e:
+            log_event(logger, logging.ERROR, "nsjail_execution_failed", "tools",
+                      **self._log_context, subprocess_id=execution_id, tool=tool_name,
+                      status="failed", elapsed_ms=round((time.time() - start_time) * 1000),
+                      **exception_fields(e))
             return ToolResult(
                 success=False,
                 error=f"Subprocess error: {str(e)}",

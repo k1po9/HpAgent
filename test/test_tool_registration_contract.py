@@ -367,3 +367,197 @@ async def test_explicitly_disabled_mcp_servers_are_a_complete_source(resource_st
     finally:
         if manager is not None:
             await manager.disconnect()
+
+
+@pytest.mark.parametrize('finish', ['same_key', 'destroy', 'cleanup', 'close'])
+def test_sandbox_lifecycle_serializes_creation_threads(tmp_path, monkeypatch, finish):
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError
+    from threading import Event
+
+    import sandbox.sandbox_manager as module
+
+    manager = module.SandboxManager(nsjail_enabled=False, max_idle_seconds=-1)
+    entered, release, competing = Event(), Event(), Event()
+    created = []
+    real_sandbox = module.Sandbox
+
+    def construct(**kwargs):
+        sandbox = real_sandbox(**kwargs)
+        created.append(sandbox)
+        if len(created) == 1:
+            entered.set()
+            assert release.wait(5)
+        return sandbox
+
+    monkeypatch.setattr(module, 'Sandbox', construct)
+
+    def compete():
+        competing.set()
+        if finish == 'same_key':
+            return manager.create_execution_sandbox('execution:11', str(tmp_path))
+        if finish == 'destroy':
+            return manager.destroy_sandbox(created[0].sandbox_id)
+        if finish == 'cleanup':
+            return manager.cleanup_idle_sandboxes()
+        return manager.close()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(manager.create_execution_sandbox, 'execution:11', str(tmp_path))
+        try:
+            assert entered.wait(5)
+            second = pool.submit(compete)
+            assert competing.wait(5)
+            # Construction is deliberately paused; lifecycle calls must wait.
+            with pytest.raises(TimeoutError):
+                second.result(timeout=0.05)
+        finally:
+            release.set()
+        sandbox_id = first.result(timeout=5)
+        outcome = second.result(timeout=5)
+    if finish == 'same_key':
+        assert outcome == sandbox_id
+        assert len(created) == 1
+        assert manager.get_sandbox_count() == 1
+    else:
+        assert created[0].status == 'destroyed'
+        assert manager.get_sandbox_count() == 0
+        if finish == 'destroy':
+            assert outcome is True
+        if finish == 'cleanup':
+            assert outcome == 1
+    manager.close()
+
+
+async def test_sandbox_tasks_reuse_attempt_and_isolate_lease(tmp_path):
+    import asyncio
+
+    from sandbox.sandbox_manager import SandboxManager
+
+    manager = SandboxManager(nsjail_enabled=False)
+
+    async def create(key):
+        await asyncio.sleep(0)
+        return manager.create_execution_sandbox(key, str(tmp_path))
+
+    same = await asyncio.gather(*(create('execution:11') for _ in range(8)))
+    assert len(set(same)) == 1
+    other = await create('execution:12')
+    assert other != same[0]
+    assert manager.get_sandbox(other)._registry is not manager.get_sandbox(same[0])._registry
+    first = manager.get_sandbox(same[0])
+    first._hints.append('first-attempt')
+    assert manager.get_sandbox(other)._drain_hints() == []
+    manager.destroy_sandbox(same[0])
+    assert manager.get_sandbox_for_execution('execution:12').status == 'active'
+    manager.close()
+    with pytest.raises(RuntimeError, match='closed'):
+        await create('execution:13')
+    assert manager.get_sandbox_count() == 0
+
+
+@pytest.mark.parametrize('failure_point', ['factory', 'after_construction'])
+def test_sandbox_creation_failure_cleans_local_state_and_allows_retry(tmp_path, monkeypatch, failure_point):
+    from types import SimpleNamespace
+
+    import sandbox.sandbox_manager as module
+
+    shared = SimpleNamespace(get_cached_tools=lambda: [], close=lambda: pytest.fail('shared close'))
+    manager = module.SandboxManager(nsjail_enabled=False, mcp_manager=shared, retriever=shared)
+    created = []
+    real_sandbox = module.Sandbox
+
+    def construct(**kwargs):
+        sandbox = real_sandbox(**kwargs)
+        created.append(sandbox)
+        return sandbox
+
+    def fail(*args, **kwargs):
+        raise ValueError('injected creation failure')
+
+    monkeypatch.setattr(module, 'Sandbox', construct)
+    with monkeypatch.context() as patch:
+        if failure_point == 'factory':
+            patch.setitem(module.LOCAL_TOOL_FACTORIES, 'fs_read', fail)
+        else:
+            patch.setattr(module.ToolRegistry, 'count_by_category', fail)
+        with pytest.raises(ValueError, match='injected'):
+            manager.create_execution_sandbox('execution:11', str(tmp_path))
+    assert manager.get_sandbox_count() == 0
+    assert not manager._execution_to_sandbox
+    assert all(s.status == 'destroyed' for s in created)
+    sandbox_id = manager.create_execution_sandbox('execution:11', str(tmp_path))
+    assert manager.get_sandbox_for_execution('execution:11').sandbox_id == sandbox_id
+    manager.close()
+    manager.close()
+
+
+def test_sandbox_lifecycle_logs_safe_identity_and_failure_stack(tmp_path, monkeypatch, caplog):
+    import json
+    import logging
+
+    import sandbox.sandbox_manager as module
+    from common.logging import _JsonFormatter
+
+    manager = module.SandboxManager(nsjail_enabled=False)
+    caplog.set_level(logging.INFO)
+    secret = 'credential-and-private-body'
+    with monkeypatch.context() as patch:
+        def fail(*args):
+            raise ValueError(secret)
+        patch.setitem(module.LOCAL_TOOL_FACTORIES, 'fs_read', fail)
+        with pytest.raises(ValueError):
+            manager.create_execution_sandbox('execution:11', str(tmp_path), user_uuid='account')
+    sandbox_id = manager.create_execution_sandbox('execution:11', str(tmp_path), user_uuid='account')
+    manager.close()
+    records = [json.loads(_JsonFormatter().format(r)) for r in caplog.records
+               if getattr(r, 'event', '').startswith('sandbox_')]
+    failed = next(r for r in records if r['event'] == 'sandbox_creation_failed')
+    assert failed['execution_id'] == 'execution'
+    assert failed['lease_token'] == '11'
+    assert failed['resource_key'] == 'execution:11'
+    assert failed['account_id'] == 'account'
+    assert failed['elapsed_ms'] >= 0
+    assert failed['error_type'] == 'ValueError'
+    assert failed['traceback']
+    assert secret not in json.dumps(records)
+    assert sum(r['event'] == 'sandbox_creation_failed' for r in records) == 1
+    assert any(r.get('sandbox_id') == sandbox_id and r['event'] == 'sandbox_created' for r in records)
+    assert any(r.get('sandbox_id') == sandbox_id and r['event'] == 'sandbox_destroyed' for r in records)
+
+
+async def test_tool_exception_diagnostic_has_attempt_and_no_private_values(tmp_path, monkeypatch, caplog):
+    import json
+    import logging
+
+    from actions.contracts import ActionRequest
+    from actions.runtime import ActionRuntime
+    from common.logging import _JsonFormatter
+    from sandbox.sandbox_manager import SandboxManager
+
+    def broken_tool(workspace):
+        def invoke(path: str):
+            raise ValueError('private-body-and-credential')
+        tool = StructuredTool.from_function(invoke, name='fs_read', description='test')
+        tool.metadata = {'side_effect_class': 'read_only'}
+        return tool
+
+    monkeypatch.setitem(LOCAL_TOOL_FACTORIES, 'fs_read', broken_tool)
+    caplog.set_level(logging.INFO)
+    manager = SandboxManager(nsjail_enabled=False)
+    sandbox_id = manager.create_execution_sandbox('execution:11', str(tmp_path))
+    result = await ActionRuntime(sandbox_manager=manager).execute_request(
+        ActionRequest('call', 'fs_read', {'path': 'private-argument'}),
+        resource_key='execution:11', execution_id='execution',
+    )
+    assert result.failed
+    manager.close()
+    records = [json.loads(_JsonFormatter().format(r)) for r in caplog.records]
+    errors = [r for r in records if r.get('traceback')]
+    assert len(errors) == 1
+    assert errors[0]['execution_id'] == 'execution'
+    assert errors[0]['resource_key'] == 'execution:11'
+    assert errors[0]['sandbox_id'] == sandbox_id
+    assert errors[0]['tool'] == 'fs_read'
+    assert errors[0]['error_type'] == 'ValueError'
+    assert 'private-body-and-credential' not in json.dumps(records)
+    assert 'private-argument' not in json.dumps(records)

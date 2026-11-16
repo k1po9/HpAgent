@@ -53,6 +53,26 @@ def log_event(logger: logging.Logger, level: int, event: str, component: str, /,
     })
 
 
+def exception_fields(exc: BaseException) -> dict[str, object]:
+    """Keep traceback locations without exception text, source lines or locals."""
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        if getattr(current, "_hpagent_traceback_logged", False):
+            return {"error_type": type(exc).__name__, "traceback_logged": True}
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    exc._hpagent_traceback_logged = True  # type: ignore[attr-defined]
+    return {
+        "error_type": type(exc).__name__,
+        "traceback": [
+            {"file": Path(frame.f_code.co_filename).name,
+             "function": frame.f_code.co_name, "line": line}
+            for frame, line in traceback.walk_tb(exc.__traceback__)
+        ],
+    }
+
+
 def setup_logging(
     level: int = logging.INFO,
     log_dir: Path | str = Path(".data/logs"),
